@@ -1,0 +1,285 @@
+################################################################################################
+#----- Auto Spine Rigger 
+#built by F.Bango                     Ver_02          3dverts@gmail.com
+#How to use:
+# 1) Press Build Lovators to create group of locators with amount of joints you want for spine 
+# 2) Hit build, to build the spine with top/ mid/ btm control
+#                
+################################################################################################
+import maya.cmds as cmds
+spineLocLocation = []
+jointList =[]
+numberOfJoints= []
+def genLocs(*args):
+    
+# user input
+    count = 0
+    userInput = input("Enter the number: ")
+    n_ofJoints = int(userInput)
+    numberOfJoints.append(n_ofJoints)
+    #Create spine Locs
+    
+    print (numberOfJoints)
+    
+    while count < n_ofJoints:
+        count = count + 1 
+        name = count
+        print (name)  
+        spineLoc = cmds.spaceLocator(p=(0,0,0),n="spine%s_mover" % name)
+        spineLocLocation.append(spineLoc[0])
+        cmds.setAttr ('%s.ty'%spineLoc[0], name)
+        cmds.select(clear=True)
+#Make joints at spine Locs Pos
+def buildShit(*args):
+    for s in spineLocLocation:
+        target = cmds.xform(s,q=1,ws=1,rp=1)
+        name = s[:-6]
+        print (name)
+        cmds.select( d=True )
+        j1= cmds.joint( p=(target[0], target[1], target[2]),n="%s_BJ" % name, rad=0.3)
+        cmds.joint( j1, e=True, zso=True, oj='xyz' ) 
+        jointList.append(j1)    
+    # parents joint chain    
+    cmds.select('*_BJ')                
+    jnts = cmds.ls(sl=True)
+    print (jnts[0])
+    print (jnts[1])
+    size = len(jnts)
+    print (size)                                
+    for i in range(1,size):
+        cmds.parent(jnts[i],jnts[i-1])
+    
+    # make controls for top mid bottom
+    btmLoc = spineLocLocation[0]
+    topLoc = spineLocLocation[-1]
+    
+    baseBtm = cmds.xform(btmLoc,q=1,ws=1,rp=1)
+    baseTop = cmds.xform(topLoc,q=1,ws=1,rp=1)
+    
+    DJList=[]
+    
+    #Btm
+    btmCircle = cmds.circle( nr=(0, 1, 0), c=(0,0,0), sw=360, r=2, n="spineBottom_CTL" )                                                                 
+    cmds.setAttr ('%s.tx'%btmCircle[0],baseBtm[0] )
+    cmds.setAttr ('%s.ty'%btmCircle[0],baseBtm[1] )
+    cmds.setAttr ('%s.tz'%btmCircle[0],baseBtm[2] )
+    dj1= cmds.joint( p=(baseBtm[0], baseBtm[1], baseBtm[2]),n="%s_DJ" % btmLoc[:-6], rad=1.5)
+    DJList.append(dj1)
+    cmds.select(clear=True)
+    cmds.group(em=True, n="spineBtm_Pad")
+    cmds.setAttr ('spineBottom_CTL.tx',baseBtm[0] )
+    cmds.setAttr ('spineBottom_CTL.ty',baseBtm[1] )
+    cmds.setAttr ('spineBottom_CTL.tz',baseBtm[2] )
+    cmds.select (btmCircle)
+    cmds.select ( "spineBtm_Pad" ,add=True)
+    cmds.parent()
+    #Top
+    
+    topCircle = cmds.circle( nr=(0, 1, 0), c=(0,0,0), sw=360, r=2, n="spineTop_CTL" )                                                       
+    cmds.setAttr ('%s.tx'%topCircle[0],baseTop[0] )
+    cmds.setAttr ('%s.ty'%topCircle[0],baseTop[1] )
+    cmds.setAttr ('%s.tz'%topCircle[0],baseTop[2] )
+    dj2= cmds.joint( p=(baseTop[0], baseTop[1], baseTop[2]),n="%s_DJ" % topLoc[:-6], rad=1.5)
+    DJList.append(dj2)
+    cmds.select(clear=True)
+    cmds.group(em=True, n="spineTop_Pad")
+    cmds.setAttr ('spineTop_Pad.tx',baseTop[0] )
+    cmds.setAttr ('spineTop_Pad.ty',baseTop[1] )
+    cmds.setAttr ('spineTop_Pad.tz',baseTop[2] )
+    cmds.select (topCircle)
+    cmds.select ( "spineTop_Pad" ,add=True)
+    cmds.parent()
+    #Mid
+    midCircle = cmds.circle( nr=(0, 1, 0), c=(0,0,0), sw=360, r=2, n="spineMid_CTL" )                                                                    
+    cmds.delete(cmds.parentConstraint(btmCircle,topCircle,midCircle,mo=False))
+    baseMid = cmds.xform(midCircle,q=1,ws=1,rp=1)
+    dj3= cmds.joint( p=(baseMid[0], baseMid[1], baseMid[2]),n="spineMid_DJ", rad=1.5)
+    DJList.append(dj3)
+    cmds.select(clear=True)
+    cmds.group(em=True, n="spineMid_Pad")
+    cmds.setAttr ('spineMid_Pad.tx',baseMid[0] )
+    cmds.setAttr ('spineMid_Pad.ty',baseMid[1] )
+    cmds.setAttr ('spineMid_Pad.tz',baseMid[2] )
+    cmds.select (midCircle)
+    cmds.select ( "spineMid_Pad" ,add=True)
+    cmds.parent()
+    
+    #makes ikspline handle / binds DJ joints to handle
+    spans = (numberOfJoints[0] -3)
+    ikSplineHandle= cmds.ikHandle(n="spineIKHS", sj=jointList[0], ee=jointList[-1], p=2, w=.5, sol= "ikSplineSolver", ns=spans )
+    cmds.rename("curve1","spineCurve")
+    cmds.select (DJList)
+    cmds.select ( "spineCurve" ,add=True)
+    cmds.skinCluster(tsb=True, sm=0,n="spineCurveBind")
+    curve = cmds.ls("spineCurve")
+    cmds.select(clear=True)
+    
+    #deletes the locators
+    cmds.delete(spineLocLocation)
+    
+    ################################################################################
+    
+    ## I was lazy and I just merged the old step by step script with the new one 
+    
+    ## THIS IS OLD YOU DONT NEED TO MAKE THESE SELECTIONS ANYMORE
+    ## select the top spine control,mid control, then the bottom spine control then the IK handle for the spine
+    ## the the IKspline Curve
+    
+    controlList = (topCircle[0], midCircle[0], btmCircle[0],"spineIKHS",'spineCurve' )
+    
+    selected =[]
+    jointSel =[]
+    midSplineBind = []
+    
+    
+    
+    cmds.select(controlList)
+    sel = cmds.ls(sl=True)
+    cmds.select(clear=True)
+    for s in sel:
+        selected.append(s)
+        
+    
+    # Select the middle IK Spline BIND joint
+    ## then all the joints starting form bottom up
+    
+    cmds.select(DJList[2],jointList)
+    
+    jSel = cmds.ls(sl=True)
+    newJSel= jSel.pop(0)
+    cmds.select(clear=True)
+    for s in jSel:
+        jointSel.append(s)
+    midSplineBind.append(newJSel)
+    
+    ##makes math nodes 
+    
+    hipNeg = cmds.shadingNode ("multiplyDivide", asUtility=True, name="hipNegative")
+    hipPlusMinOut = cmds.shadingNode ("multiplyDivide", asUtility=True, name="hipPlusMinOutput")
+    hipPlusMinusAvg = cmds.shadingNode ("plusMinusAverage", asUtility=True, name="hipPlusMinusAvg")
+    cmds.setAttr ('%s.operation'%hipPlusMinusAvg, 2)
+    ## connects the top control to the + - avg and the bottom control -> hips negative -> +- Avg [1] in subtraction
+    
+    ##btm to */ node
+    cmds.connectAttr ('%s.rotateY'%selected[2],'%s.input1X'%hipNeg )
+    
+    ##top and btm to +- avg
+    cmds.connectAttr ('%s.rotateY'%selected[0],'%s.input1D[0]'%hipPlusMinusAvg)
+    cmds.connectAttr ('%s.outputX'%hipNeg ,'%s.input1D[1]'%hipPlusMinusAvg)
+    cmds.connectAttr ('%s.output1D'%hipPlusMinusAvg,'%s.input1.input1X'%hipPlusMinOut)
+    
+    ##BTM to IK roll
+    cmds.connectAttr ('%s.rotateY'%selected[2],'%s.roll'%selected[3])
+    
+    ## top negative value to spineIK twist after +- Avg
+    cmds.connectAttr ('%s.output.outputX'%hipPlusMinOut,'%s.twist'%selected[3]) 
+    
+    ## adds stretch to spine
+    curveInfoNode = cmds.arclen(selected[4], ch=True)
+    distance = cmds.getAttr ('%s.arcLength'%curveInfoNode)
+    arcLengthMD = cmds.shadingNode ("multiplyDivide", asUtility=True, name="arcLengthOut")
+    arcLengthNormalize = cmds.shadingNode ("multiplyDivide", asUtility=True, name="arcLength_Normalize_MD")
+    blendStretch = cmds.shadingNode ("blendColors", asUtility=True, name="spineStretchBlend")
+    cmds.setAttr ('%s.operation'%arcLengthMD, 1)
+    cmds.setAttr ('%s.operation'%arcLengthNormalize, 2)
+    cmds.connectAttr ('%s.arcLength'%curveInfoNode,'%s.input1X'%arcLengthNormalize)
+    cmds.setAttr ('%s.input2X'%arcLengthNormalize, distance)
+    cmds.setAttr ('%s.input1Y'%arcLengthNormalize, 1)
+    
+    cmds.connectAttr ('%s.output.outputX'%arcLengthNormalize,'%s.color1R'%blendStretch)
+    cmds.connectAttr ('%s.output.outputY'%arcLengthNormalize,'%s.color2R'%blendStretch)
+    
+    cmds.connectAttr ('%s.output.outputR'%blendStretch,'%s.input1.input1X'%arcLengthMD)
+    
+    
+    ## connects stretch cond to spine joints
+    for jointX in jointSel:
+        cmds.connectAttr ('%s.output.outputX'%arcLengthMD,'%s.scaleY.'%jointX)
+            
+    ## add curvature attr to the mid control
+    cmds.addAttr(ln= '___________', at= 'enum', en='____________:', hidden=False, keyable=True)
+    cmds.addAttr (selected[1],ln="midDriverInfluence", at="double", min= -1, max= 1, dv=0, hidden=False, keyable=True )
+    cmds.addAttr (selected[1],ln="spineCurvature", at="double", dv=1, hidden=False, keyable=True )
+    cmds.addAttr (selected[1],ln="spineStretch", at="double", min= 0, max= 1, dv=0, hidden=False, keyable=True )
+    cmds.connectAttr('%s.spineStretch'%selected[1],'%s.blender'%blendStretch)  
+    
+    cmds.setAttr ('%s.spineStretch'%selected[1],1)  
+    cmds.select(clear=True)
+    
+    # connects Spine Curvature attr to Mid spine IK bind Scale Y
+    
+    cmds.connectAttr ('%s.spineCurvature'%selected[1],'%s.scaleY.'%midSplineBind[0])
+    
+    
+    #Makes 2 locs that follow top / btm controls, PC to the middle and connected to the spineFollow Attr
+     
+    base = cmds.xform(midSplineBind[0],q=1,ws=1,rp=1)
+    locTop= cmds.spaceLocator( p=(base[0], base[1], base[2]), n ="topSpineFollow_Null")   
+    locBtm= cmds.spaceLocator( p=(base[0], base[1], base[2]), n ="btmSpineFollow_Null")
+    cmds.parent(locTop,selected[0])
+    cmds.parent(locBtm,selected[2])     
+        
+    cmds.select(selected[1][:-4]+"_Pad")   
+    midCtlPad = cmds.ls(sl=True)
+           
+    cmds.parentConstraint( locTop,midCtlPad, mo=True )
+    cmds.parentConstraint( locBtm,midCtlPad, mo=True )
+    
+    #mid driver influence connections
+    cmds.select(selected[1][:-4]+"_Pad_parentConstraint1")   
+    midCtlPad = cmds.ls(sl=True)
+    
+    #TOP SDK
+    cmds.setAttr ('%s.midDriverInfluence'%selected[1], 1)
+    cmds.setAttr ('%s.topSpineFollow_NullW0'%midCtlPad[0], 1)
+    cmds.setAttr ('%s.btmSpineFollow_NullW1'%midCtlPad[0], 0)
+    
+    cmds.setDrivenKeyframe('%s.topSpineFollow_NullW0'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    cmds.setDrivenKeyframe('%s.btmSpineFollow_NullW1'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    #MID SDK
+    cmds.setAttr ('%s.midDriverInfluence'%selected[1], .5)
+    cmds.setAttr ('%s.topSpineFollow_NullW0'%midCtlPad[0], .5)
+    cmds.setAttr ('%s.btmSpineFollow_NullW1'%midCtlPad[0], .5)     
+    
+    cmds.setDrivenKeyframe('%s.topSpineFollow_NullW0'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    cmds.setDrivenKeyframe('%s.btmSpineFollow_NullW1'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    #BOttom SDK
+    cmds.setAttr ('%s.midDriverInfluence'%selected[1], -1)
+    cmds.setAttr ('%s.topSpineFollow_NullW0'%midCtlPad[0], 0)
+    cmds.setAttr ('%s.btmSpineFollow_NullW1'%midCtlPad[0], 1) 
+    cmds.setDrivenKeyframe('%s.topSpineFollow_NullW0'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    cmds.setDrivenKeyframe('%s.btmSpineFollow_NullW1'%midCtlPad[0], cd='%s.midDriverInfluence'%selected[1] )
+    cmds.setAttr ('%s.midDriverInfluence'%selected[1],0)
+    
+    cmds.select(clear=True)   
+    
+    cmds.confirmDialog(message="IK stretch/twist spine done")
+
+### WINDOW===================================================================================================================
+
+ 
+
+
+if (cmds.window("FB_Spine", exists=True)):
+    cmds.deleteUI("FB_Spine")
+cmds.window("FB_Spine",t="FB_Spine",h=400, w=100, s=1)
+
+cmds.frameLayout( label='==Easy Spine Rig== ', mh= 5, bgc=[0,0,0] )
+cmds.columnLayout( adjustableColumn=True )
+cmds.separator( h=10, style='none' )
+cmds.text( label='============================================',align='center',bgc=[0,0,0] )
+cmds.separator( h=10, style='none' )
+cmds.separator( h=10, style='none' )
+cmds.text( label='How many locators for the spine? ',align='center',bgc=[0,0,0] )
+cmds.separator( h=20, style='none' )
+cmds.button(label='Build Temp Spine Locators', command= genLocs)
+cmds.separator( h=10, style='none' )
+cmds.text( label='Build Spine Rig',align='center',bgc=[1,0,0] )
+cmds.separator( h=10, style='none' )
+cmds.button(label='Build Spine Stuff',command= buildShit)
+cmds.separator( h=10, style='none' )
+cmds.text( label='============================================',align='center',bgc=[0,0,0] )
+cmds.separator( h=10, style='none' )
+cmds.setParent( '..' )
+
+cmds.showWindow() 
